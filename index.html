@@ -313,86 +313,72 @@
     const db = firebase.firestore();
 
     // ฟังการเปลี่ยนแปลงข้อมูลร้านแบบ Real-time (ทุกคนเห็นข้อมูลเดียวกันทันทีที่แอดมินเซฟ)
+     // -------------------------------------------------------------
+    // ระบบแสดงข้อมูลและดึงแคชทันที ไม่ให้หน้าเว็บว่างเปล่า
+    // -------------------------------------------------------------
+    function renderSiteData(data) {
+      if (!data) return;
+
+      if (data.banner) document.getElementById('mainBanner').src = data.banner;
+      if (data.profile) document.getElementById('mainProfile').src = data.profile;
+      if (data.storeName) document.getElementById('mainStoreName').textContent = data.storeName;
+      if (data.storeBio) document.getElementById('mainStoreBio').textContent = data.storeBio;
+
+      // แสดงลิงก์งาน 4 ลิงก์
+      if (data.links && data.links.length > 0) {
+        const linksContainer = document.getElementById('mainLinksContainer');
+        linksContainer.innerHTML = '';
+        data.links.forEach(item => {
+          const a = document.createElement('a');
+          a.href = item.url || "#";
+          a.target = "_blank";
+          a.className = "work-link";
+          a.innerHTML = `<span>${item.text || 'link example ♡'}</span><span class="link-icon-arrow">➔</span>`;
+          linksContainer.appendChild(a);
+        });
+      }
+
+      // แสดงโพสต์ 4 โพสต์
+      if (data.posts && data.posts.length > 0) {
+        const postsContainer = document.getElementById('mainPostsContainer');
+        postsContainer.innerHTML = '';
+        data.posts.forEach(post => {
+          const div = document.createElement('div');
+          div.className = "post-card";
+          div.innerHTML = `
+            <img src="${post.img || 'https://i.ibb.co/gZg1bdv9/IMG-3203.jpg'}" alt="${post.title}" class="post-img">
+            <div class="post-body">
+              <h3 class="post-title">${post.title || ''}</h3>
+              <p class="post-desc">${post.desc || ''}</p>
+            </div>
+          `;
+          postsContainer.appendChild(div);
+        });
+      }
+
+      // เพลง
+      if (data.musicUrl) {
+        const music = document.getElementById('bgMusic');
+        if (music.src !== data.musicUrl) {
+          music.src = data.musicUrl;
+          music.play().catch(() => {});
+        }
+      }
+    }
+
+    // 1. โหลดข้อมูลเดิมที่จำไว้มาแสดงทันทีในเสี้ยววินาทีแรก (ไม่กระตุก)
+    const cachedData = localStorage.getItem('luvselris_cached_content');
+    if (cachedData) {
+      try {
+        renderSiteData(JSON.parse(cachedData));
+      } catch (e) {}
+    }
+
+    // 2. ดึงข้อมูลอัปเดตล่าสุดจาก Firebase
     db.collection("luvselris_site").doc("content").onSnapshot(doc => {
       if (doc.exists) {
-        const data = doc.data();
-
-        if (data.banner) document.getElementById('mainBanner').src = data.banner;
-        if (data.profile) document.getElementById('mainProfile').src = data.profile;
-        if (data.storeName) document.getElementById('mainStoreName').textContent = data.storeName;
-        if (data.storeBio) document.getElementById('mainStoreBio').textContent = data.storeBio;
-
-        // ลิงก์งาน 4 ช่อง
-        if (data.links && data.links.length > 0) {
-          const linksContainer = document.getElementById('mainLinksContainer');
-          linksContainer.innerHTML = '';
-          data.links.forEach(item => {
-            const a = document.createElement('a');
-            a.href = item.url || "#";
-            a.target = "_blank";
-            a.className = "work-link";
-            a.innerHTML = `<span>${item.text || 'link example ♡'}</span><span class="link-icon-arrow">➔</span>`;
-            linksContainer.appendChild(a);
-          });
-        }
-
-        // โพสต์ 4 โพสต์
-        if (data.posts && data.posts.length > 0) {
-          const postsContainer = document.getElementById('mainPostsContainer');
-          postsContainer.innerHTML = '';
-          data.posts.forEach(post => {
-            const div = document.createElement('div');
-            div.className = "post-card";
-            div.innerHTML = `
-              <img src="${post.img || 'https://i.ibb.co/gZg1bdv9/IMG-3203.jpg'}" alt="${post.title}" class="post-img">
-              <div class="post-body">
-                <h3 class="post-title">${post.title || ''}</h3>
-                <p class="post-desc">${post.desc || ''}</p>
-              </div>
-            `;
-            postsContainer.appendChild(div);
-          });
-        }
-
-        // เพลง
-        if (data.musicUrl) {
-          const music = document.getElementById('bgMusic');
-          if (music.src !== data.musicUrl) {
-            music.src = data.musicUrl;
-            music.play().catch(() => {});
-          }
-        }
+        const liveData = doc.data();
+        localStorage.setItem('luvselris_cached_content', JSON.stringify(liveData));
+        renderSiteData(liveData);
       }
     });
-
-    // Auto-play Music
-    const music = document.getElementById('bgMusic');
-    function playAudio() {
-      if (music.paused) {
-        music.play().catch(() => {});
-      }
-    }
-    window.addEventListener('DOMContentLoaded', () => {
-      playAudio();
-      document.body.addEventListener('click', playAudio, { once: true });
-      document.body.addEventListener('touchstart', playAudio, { once: true });
-    });
-
-    // Floating Emojis: 👼🏻 ☁️ 🐰 🤍 🩹
-    const icons = ['👼🏻', '☁️', '🐰', '🤍', '🩹'];
-    const emojiContainer = document.getElementById('emojiContainer');
-
-    function createEmoji() {
-      const el = document.createElement('div');
-      el.className = 'float-item';
-      el.textContent = icons[Math.floor(Math.random() * icons.length)];
-      el.style.left = Math.random() * 92 + 'vw';
-      el.style.animationDuration = (8 + Math.random() * 5) + 's';
-      emojiContainer.appendChild(el);
-
-      setTimeout(() => { el.remove(); }, 14000);
-    }
-    setInterval(createEmoji, 1200);
-  </script>
-</body>
-</html>
