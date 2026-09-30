@@ -283,7 +283,7 @@
     <div class="section-card">
       <div class="section-title">✨ Works & Links ♡</div>
       <div class="links-list" id="mainLinksContainer">
-        <!-- โหลดจาก Firebase -->
+        <!-- ลิงก์จะถูกเติมที่นี่ -->
       </div>
     </div>
 
@@ -291,7 +291,7 @@
     <div class="section-card">
       <div class="section-title">🎀 Recent Posts (เลื่อนดูได้นะคะ)</div>
       <div class="posts-scroll-container" id="mainPostsContainer">
-        <!-- โหลดจาก Firebase -->
+        <!-- โพสต์จะถูกเติมที่นี่ -->
       </div>
     </div>
 
@@ -299,7 +299,7 @@
   </div>
 
   <script>
-    // Firebase Config (เชื่อมต่อ Cloud Firestore เพื่อให้ทุกคนเห็นตรงกัน)
+    // 1. เชื่อมต่อ Firebase Config
     const firebaseConfig = {
       apiKey: "AIzaSyCpAGDSy1NRgmLV_g7qJrCpwOhU9MrfQyY",
       authDomain: "benefitie.firebaseapp.com",
@@ -309,14 +309,13 @@
       appId: "1:270365672215:web:230d1491091e26ce83ed52"
     };
 
-    firebase.initializeApp(firebaseConfig);
+    if (!firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+    }
     const db = firebase.firestore();
 
-    // ฟังการเปลี่ยนแปลงข้อมูลร้านแบบ Real-time (ทุกคนเห็นข้อมูลเดียวกันทันทีที่แอดมินเซฟ)
-     // -------------------------------------------------------------
-    // ระบบแสดงข้อมูลและดึงแคชทันที ไม่ให้หน้าเว็บว่างเปล่า
-    // -------------------------------------------------------------
-    function renderSiteData(data) {
+    // 2. ฟังก์ชันเรนเดอร์ข้อมูลทั้งหมด
+    function applyData(data) {
       if (!data) return;
 
       if (data.banner) document.getElementById('mainBanner').src = data.banner;
@@ -324,35 +323,35 @@
       if (data.storeName) document.getElementById('mainStoreName').textContent = data.storeName;
       if (data.storeBio) document.getElementById('mainStoreBio').textContent = data.storeBio;
 
-      // แสดงลิงก์งาน 4 ลิงก์
-      if (data.links && data.links.length > 0) {
-        const linksContainer = document.getElementById('mainLinksContainer');
-        linksContainer.innerHTML = '';
+      // แสดง 4 ลิงก์
+      if (data.links && Array.isArray(data.links)) {
+        const linkBox = document.getElementById('mainLinksContainer');
+        linkBox.innerHTML = '';
         data.links.forEach(item => {
           const a = document.createElement('a');
           a.href = item.url || "#";
           a.target = "_blank";
           a.className = "work-link";
           a.innerHTML = `<span>${item.text || 'link example ♡'}</span><span class="link-icon-arrow">➔</span>`;
-          linksContainer.appendChild(a);
+          linkBox.appendChild(a);
         });
       }
 
-      // แสดงโพสต์ 4 โพสต์
-      if (data.posts && data.posts.length > 0) {
-        const postsContainer = document.getElementById('mainPostsContainer');
-        postsContainer.innerHTML = '';
-        data.posts.forEach(post => {
-          const div = document.createElement('div');
-          div.className = "post-card";
-          div.innerHTML = `
-            <img src="${post.img || 'https://i.ibb.co/gZg1bdv9/IMG-3203.jpg'}" alt="${post.title}" class="post-img">
+      // แสดง 4 โพสต์
+      if (data.posts && Array.isArray(data.posts)) {
+        const postBox = document.getElementById('mainPostsContainer');
+        postBox.innerHTML = '';
+        data.posts.forEach(p => {
+          const card = document.createElement('div');
+          card.className = "post-card";
+          card.innerHTML = `
+            <img src="${p.img || 'https://i.ibb.co/gZg1bdv9/IMG-3203.jpg'}" alt="${p.title}" class="post-img">
             <div class="post-body">
-              <h3 class="post-title">${post.title || ''}</h3>
-              <p class="post-desc">${post.desc || ''}</p>
+              <h3 class="post-title">${p.title || ''}</h3>
+              <p class="post-desc">${p.desc || ''}</p>
             </div>
           `;
-          postsContainer.appendChild(div);
+          postBox.appendChild(card);
         });
       }
 
@@ -366,19 +365,51 @@
       }
     }
 
-    // 1. โหลดข้อมูลเดิมที่จำไว้มาแสดงทันทีในเสี้ยววินาทีแรก (ไม่กระตุก)
-    const cachedData = localStorage.getItem('luvselris_cached_content');
-    if (cachedData) {
-      try {
-        renderSiteData(JSON.parse(cachedData));
-      } catch (e) {}
-    }
+    // โหลดข้อมูลล่าสุดที่เคยดึงไว้ทันทีตั้งแต่เสี้ยววินาทีแรก (ไม่ให้หน้าว่าง)
+    try {
+      const cached = localStorage.getItem('luv_cached_site_data');
+      if (cached) applyData(JSON.parse(cached));
+    } catch (e) {}
 
-    // 2. ดึงข้อมูลอัปเดตล่าสุดจาก Firebase
+    // ดึงข้อมูล Real-time จาก Cloud Firestore (ตรงจุดกับหน้า admin.html)
     db.collection("luvselris_site").doc("content").onSnapshot(doc => {
       if (doc.exists) {
-        const liveData = doc.data();
-        localStorage.setItem('luvselris_cached_content', JSON.stringify(liveData));
-        renderSiteData(liveData);
+        const live = doc.data();
+        localStorage.setItem('luv_cached_site_data', JSON.stringify(live));
+        applyData(live);
       }
+    }, err => {
+      console.error("Firestore read error:", err);
     });
+
+    // Auto-play Music
+    const music = document.getElementById('bgMusic');
+    function playAudio() {
+      if (music.paused) {
+        music.play().catch(() => {});
+      }
+    }
+    window.addEventListener('DOMContentLoaded', () => {
+      playAudio();
+      document.body.addEventListener('click', playAudio, { once: true });
+      document.body.addEventListener('touchstart', playAudio, { once: true });
+    });
+
+    // Floating Emojis: 👼🏻 ☁️ 🐰 🤍 🩹
+    const icons = ['👼🏻', '☁️', '🐰', '🤍', '🩹'];
+    const emojiContainer = document.getElementById('emojiContainer');
+
+    function createEmoji() {
+      const el = document.createElement('div');
+      el.className = 'float-item';
+      el.textContent = icons[Math.floor(Math.random() * icons.length)];
+      el.style.left = Math.random() * 92 + 'vw';
+      el.style.animationDuration = (8 + Math.random() * 5) + 's';
+      emojiContainer.appendChild(el);
+
+      setTimeout(() => { el.remove(); }, 14000);
+    }
+    setInterval(createEmoji, 1200);
+  </script>
+</body>
+</html>
